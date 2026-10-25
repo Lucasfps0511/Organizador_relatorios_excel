@@ -8,6 +8,7 @@ from main import (
     limpar_precos,
     padronizar_datas,
     padronizar_vendedores,
+    tratar_valores_ausentes
 )
 
 
@@ -141,7 +142,7 @@ def test_padronizar_datas_resultado_e_datetime():
 
 # ---------- padronizar_vendedores ----------
 
-def test_vendedor_capitaliza_segundo_nome():
+def test_padronizar_vendedores_vendedor_capitaliza_segundo_nome():
     df = pd.DataFrame({
         "Vendedor": ["Francisco sousa (SP)"]
     })
@@ -149,7 +150,7 @@ def test_vendedor_capitaliza_segundo_nome():
     assert resultado["Vendedor"].iloc[0] == "Francisco Sousa"
     assert resultado["UF"].iloc[0] == "SP"
 
-def test_capitaliza_nomes_e_uf():
+def test_padronizar_vendedores_capitaliza_nomes_e_uf():
     df = pd.DataFrame({
         "Vendedor": ["célia alves (go)"]
     })
@@ -157,7 +158,7 @@ def test_capitaliza_nomes_e_uf():
     assert resultado["Vendedor"].iloc[0] == "Célia Alves"
     assert resultado["UF"].iloc[0] == "GO"
 
-def test_nomes_capitalizados_e_uf_em_maiusculo_mantem_tudo():
+def test_padronizar_vendedores_nomes_capitalizados_e_uf_em_maiusculo_mantem_tudo():
     df = pd.DataFrame({
             "Vendedor": ["Soraya dos Anjos (AL)"]
     })
@@ -165,7 +166,7 @@ def test_nomes_capitalizados_e_uf_em_maiusculo_mantem_tudo():
     assert resultado["Vendedor"].iloc[0] == "Soraya dos Anjos"
     assert resultado["UF"].iloc[0] == "AL"
 
-def test_sem_uf_mantem_nome_e_uf_ausente():
+def test_padronizar_vendedores_sem_uf_mantem_nome_e_uf_ausente():
     df = pd.DataFrame({
                 "Vendedor": ["Rafael Diniz"]
     }) 
@@ -173,7 +174,7 @@ def test_sem_uf_mantem_nome_e_uf_ausente():
     assert resultado["Vendedor"].iloc[0] == "Rafael Diniz"
     assert pd.isna(resultado["UF"].iloc[0])
 
-def test_vendedor_ausente_mantem_vendedor_e_uf_ausentes():
+def test_padronizar_vendedores_vendedor_ausente_mantem_vendedor_e_uf_ausentes():
     df = pd.DataFrame({
         "Vendedor": ["Francisco sousa (SP)", None] # O texto na primeira linha é o que mantém a coluna como tipo texto. Com isso, o .str da função funciona e o None vira NaN.
         })
@@ -181,3 +182,18 @@ def test_vendedor_ausente_mantem_vendedor_e_uf_ausentes():
     assert pd.isna(resultado["Vendedor"].iloc[1]) # Conferindo Linha 2 (o 1 é o segundo número a partir do 0), Coluna Vendedor
     assert pd.isna(resultado["UF"].iloc[1]) # Conferindo Linha 2 Coluna UF
     assert resultado["Vendedor"].iloc[0] == "Francisco Sousa" # Assegura que a presença do NaN não atrapalhou o processamento da linha normal; sem ele, o teste passaria mesmo se a função falhasse em tudo, desde que retornasse NaN para tudo.
+
+# ---------- tratar_valores_ausentes ----------
+
+def test_tratar_valores_ausentes_produto_valido_sem_categoria_adiciona_categoria_respectiva():
+    df = pd.DataFrame({
+        "Produto": ["Fone de Ouvido"],
+        "Categoria": [None],
+        "Vendedor": ["Daniel Toriyama"], # placeholder 
+        "UF": ["AC"], # placeholder
+    })
+    resultado = tratar_valores_ausentes(df)
+    assert resultado["Categoria"].iloc[0] == "Acessórios"
+    assert resultado["Produto"].iloc[0] == "Fone de Ouvido"
+    assert resultado["Vendedor"].iloc[0] == "Daniel Toriyama"
+    assert resultado["UF"].iloc[0] == "AC"

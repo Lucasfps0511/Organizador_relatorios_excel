@@ -4,7 +4,12 @@ from pathlib import Path
 
 PREPOSICOES = ["de", "da", "do", "das", "dos"]
 CATEGORIAS = {"eletronicos": "Eletrônicos", "acessorios": "Acessórios"}
-
+PRODUTOS_CATEGORIAS = {
+    "Notebook": "Eletrônicos",
+    "Teclado": "Eletrônicos",
+    "Mouse": "Acessórios",
+    "Fone de Ouvido": "Acessórios",
+}
 raiz_projeto = Path(__file__).resolve().parent.parent # diretório raiz do projeto; 
 planilha = raiz_projeto / "data" / "vendas_baguncadas.xlsx" # caminho da planilha de vendas baguncadas;
 
@@ -20,6 +25,8 @@ def main():
     print(f"\n\n Conferindo as datas da coluna 'Data': {df['Data']}")
     print(f"\n Qual o tipo? {df['Data'].dtype}. Quantos valores ausentes? {df['Data'].isna().sum()}")
     print(f"\n\n Quais são os valores únicos da coluna vendedor? {df["Vendedor"].unique()}")
+    df = padronizar_vendedores(df)
+    print(f"\n\n Checando vendedores: \n{df[["Vendedor", "UF"]]}")
 
 
 
@@ -39,6 +46,58 @@ def padronizar_textos(df):
     df["Categoria"] = df["Categoria"].map(padronizar_categoria) #Aplica a função padronizar_categoria em cada valor da coluna;
     return df
 
+def limpar_precos(df):
+
+    '''Limpa os preços das colunas 'Preço' removendo os símbolos de moeda e convertendo para o tipo numérico;
+    Args:
+        df (pandas.DataFrame): O dataframe contendo a coluna 'Preço';
+    Returns:
+        pandas.DataFrame: O dataframe com os preços limpos;
+    '''
+    df = df.copy()
+    df["Preço"] = df["Preço"].astype(str) # transforma a coluna 'Preço' em uma string;
+    df["Preço"] = df["Preço"].str.replace("R$", "", regex=False).str.strip()
+    tem_virgula = df["Preço"].str.contains(",", regex=False) # devolve uma Series (coluna) de True se contém vírgula e False se não 
+    df.loc[tem_virgula, "Preço"] = df.loc[tem_virgula, "Preço"].str.replace(".", "", regex=False) # Nas linhas que tem vírgula, na coluna preço, coloque os valore atuais sem pontos
+    df["Preço"] = df["Preço"].str.replace(",", ".", regex=False)
+    df["Preço"] = pd.to_numeric(df["Preço"], errors="coerce") # Converte a coluna 'Preço' para o tipo numérico, tratando valores inválidos como NaN;
+    return df
+
+def padronizar_datas(df):
+    
+    '''Converte a coluna 'Data' de texto para o tipo datetime, aceitando formatos mistos (ex: 03/02/2026 e 05/11/26);
+    As datas são interpretadas como dia/mês/ano e valores inválidos são convertidos para NaT;
+    Args:
+        df (pandas.DataFrame): O dataframe contendo a coluna 'Data';
+    Returns:
+        pandas.DataFrame: O dataframe com a coluna 'Data' convertida para datetime;
+    '''
+    df = df.copy()
+    df["Data"] = pd.to_datetime(df["Data"], format="mixed", dayfirst=True, errors="coerce")
+    return df
+
+def padronizar_vendedores(df):
+    '''Separa a UF do nome do vendedor: cria a coluna "UF" (em maiúsculas) com o trecho entre parênteses e deixa na coluna "Vendedor" apenas o nome, com a inicial de cada palavra em maiúscula (preposições em minúsculas, com a função capitalizar);
+    Vendedores sem UF ficam com "UF" ausente e valores ausentes (NaN) continuam ausentes;
+    Args:
+        df (pandas.DataFrame): O dataframe contendo a coluna "Vendedor";
+    Returns:
+        pandas.DataFrame: Uma cópia do dataframe com a coluna "Vendedor" limpa e a nova coluna "UF";
+    '''
+    df = df.copy()
+    df["UF"] = df["Vendedor"].str.extract(r"\((\w{2})\)", expand=False).str.upper() # Procura 2 letras entre parênteses em um item de "Vendedor" e devolve-as em maiúsculas sem eles
+    df["Vendedor"] = df["Vendedor"].str.replace(r"\s*\(.*?\)", "", regex=True).map(capitalizar) # O "replace" troca strings compatíveis com o padrão (qualquer coisa entre parênteses, isto é, a UF) por texto vazio, apagando-as. O "map" aplica a função capitalizar em todos os valores.
+    return df
+
+
+
+
+def tratar_valores_ausentes(df):
+    df = df.copy()
+    df["Categoria"] = df["Categoria"].fillna(df["Produto"].map(PRODUTOS_CATEGORIAS)) # df["Produto"].map(...) cria uma coluna com a categoria que cada produto deveria ter; o fillna(...) usa essa coluna somente nas linhas onde Categoria está vazia.
+    df["Vendedor"] = df["Vendedor"].fillna("Não informado") # Preenche as linhas onde "Vendedor" está vazio como "Não informado"
+    df["UF"] = df["UF"].fillna("Não informada")
+    return df 
 
 def capitalizar(texto):
     
@@ -70,11 +129,10 @@ def remover_acentos(texto):
       return texto_sem_acentos
 
 
-def padronizar_vendedores(df):
-    df = df.copy()
 
 
 def padronizar_categoria(texto):
+
     if not isinstance(texto, str): # Verifica se o valor não é texto (ex: NaN, que é um float);
         return texto # Devolve o valor como veio, evitando erro ao tentar usar métodos de texto nele;
     chave = remover_acentos(texto).strip().lower() # A palavra sem acento, sem espaços e em minúsculo;
@@ -82,51 +140,17 @@ def padronizar_categoria(texto):
 
 
 
-
-def limpar_precos(df):
-
-    '''Limpa os preços das colunas 'Preço' removendo os símbolos de moeda e convertendo para o tipo numérico;
-    Args:
-        df (pandas.DataFrame): O dataframe contendo a coluna 'Preço';
-    Returns:
-        pandas.DataFrame: O dataframe com os preços limpos;
-    '''
-    df = df.copy()
-    df["Preço"] = df["Preço"].astype(str) #transforma a coluna 'Preço' em uma string;
-    df["Preço"] = df["Preço"].str.replace("R$", "", regex=False).str.strip()
-    tem_virgula = df["Preço"].str.contains(",", regex=False) #devolve uma Series (coluna) de True se contém vírgula e False se não 
-    df.loc[tem_virgula, "Preço"] = df.loc[tem_virgula, "Preço"].str.replace(".", "", regex=False) #Nas linhas que tem vírgula, na coluna preço, coloque os valore atuais sem pontos
-    df["Preço"] = df["Preço"].str.replace(",", ".", regex=False)
-    df["Preço"] = pd.to_numeric(df["Preço"], errors="coerce") #Converte a coluna 'Preço' para o tipo numérico, tratando valores inválidos como NaN;
-    return df
-
-
-def padronizar_datas(df):
-    
-    '''Converte a coluna 'Data' de texto para o tipo datetime, aceitando formatos mistos (ex: 03/02/2026 e 05/11/26);
-    As datas são interpretadas como dia/mês/ano e valores inválidos são convertidos para NaT;
-    Args:
-        df (pandas.DataFrame): O dataframe contendo a coluna 'Data';
-    Returns:
-        pandas.DataFrame: O dataframe com a coluna 'Data' convertida para datetime;
-    '''
-
-    df = df.copy()
-    df["Data"] = pd.to_datetime(df["Data"], format="mixed", dayfirst=True, errors="coerce")
-    return df
-
 if __name__ == "__main__":
     main()
 
 
 #TODO:
-#Implementar separação de Vendedor e UF (nome capitalizado + UF em maiúsculas);
-#Tratar valores ausentes (Categoria via dicionário Produto → Categoria; Vendedor como "Não informado");
+#(TESTES EM PRODUÇÃO) Tratar valores ausentes (Categoria via dicionário Produto → Categoria; Vendedor como "Não informado");
 #Remover duplicatas exatas (drop_duplicates, sem remover linhas que só têm vendedor diferente);
 #Criar coluna Total (Quantidade * Preço);
 #Validar dados (quantidade e preço maiores que zero) e avisar no console;
 #Salvar a planilha limpa em data/saida/ com to_excel;
 #Escrever testes para cada função nova em tests/test_main.py;
 #(opcional) Formatar o arquivo final com openpyxl: largura das colunas, moeda e data;
-
+#(opcional) Criar branch em inglês
 
